@@ -12,7 +12,7 @@ def train_gan_vae(vae, generator, discriminator, combined, data, epochs, batch_s
     vae.fit(data, data, epochs=epochs, batch_size=batch_size)
 
     # Generate latent space representations using VAE's encoder
-    z_mean, z_log_var, z = vae.get_layer('model_1').predict(data)
+    z_mean, z_log_var, z = vae.get_layer('encoder').predict(data)
 
     for epoch in range(epochs):
         idx = np.random.randint(0, data.shape[0], batch_size)
@@ -35,6 +35,23 @@ def train_gan_vae(vae, generator, discriminator, combined, data, epochs, batch_s
 
 if __name__ == "__main__":
     # Preprocess the raw CAN data (if not already preprocessed)
-    preprocess_can_data('../data/can_data.txt')
+    preprocess_can_data('data/can_data.txt')
 
     # Load the preprocessed real CAN data
+    preprocessed_real_can_data = load_real_can_data('data/preprocessed_can_data.csv')
+
+    latent_dim = 2
+    input_dim = preprocessed_real_can_data.shape[1]
+    vae, encoder, decoder = build_vae(input_dim, latent_dim)
+    generator = build_generator(latent_dim, input_dim)
+    discriminator = build_discriminator(latent_dim)
+    discriminator.compile(optimizer=Adam(0.0002, 0.5), loss=BinaryCrossentropy(), metrics=['accuracy'])
+
+    z = Input(shape=(latent_dim,))
+    fake_data = generator(z)
+    discriminator.trainable = False
+    validity = discriminator(fake_data)
+    combined = Model(z, validity)
+    combined.compile(optimizer=Adam(0.0002, 0.5), loss=BinaryCrossentropy())
+
+    train_gan_vae(vae, generator, discriminator, combined, preprocessed_real_can_data, epochs=1000, batch_size=64, results_dir='results/gan_vae')

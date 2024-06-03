@@ -14,12 +14,12 @@ def preprocess_can_data(file_path):
     # Process each line in the file
     for line in lines:
         parts = line.split()
-        if len(parts) < 5:  # Skip lines that don't have enough parts
+        if len(parts) < 7:  # Skip lines that don't have enough parts
             continue
 
         timestamp = float(parts[1])
         can_id = int(parts[3], 16)  # Convert HEX ID to decimal
-        dlc = int(parts[5])
+        dlc = int(parts[6])
 
         # Extract data bytes and pad with zeros if necessary
         data = [int(byte, 16) for byte in parts[7:7+dlc]]
@@ -47,11 +47,11 @@ def preprocess_can_data(file_path):
     })
 
     # Save preprocessed data
-    df.to_csv('../data/preprocessed_can_data.csv', index=False)
+    df.to_csv('data/preprocessed_can_data.csv', index=False)
     print("Data preprocessing complete. Preprocessed data saved to ../data/preprocessed_can_data.csv")
 
 def load_real_can_data(preprocessed_file_path):
     return pd.read_csv(preprocessed_file_path).values
 
 if __name__ == "__main__":
-    preprocess_can_data('../data/can_data.txt')
+    preprocess_can_data('data/can_data.txt')

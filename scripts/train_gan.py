@@ -28,10 +28,10 @@ def train_gan(generator, discriminator, combined, data, epochs, batch_size, resu
 
 if __name__ == "__main__":
     # Preprocess the raw CAN data (if not already preprocessed)
-    preprocess_can_data('../data/can_data.txt')
+    preprocess_can_data('data/can_data.txt')
 
     # Load the preprocessed real CAN data
-    preprocessed_real_can_data = load_real_can_data('../data/preprocessed_can_data.csv')
+    preprocessed_real_can_data = load_real_can_data('data/preprocessed_can_data.csv')
 
     latent_dim = 2
     input_dim = preprocessed_real_can_data.shape[1]
@@ -46,4 +46,4 @@ if __name__ == "__main__":
     combined = Model(z, validity)
     combined.compile(optimizer=Adam(0.0002, 0.5), loss=BinaryCrossentropy())
 
-    train_gan(generator, discriminator, combined, preprocessed_real_can_data, epochs=1000, batch_size=64, results_dir='../results/gan')
+    train_gan(generator, discriminator, combined, preprocessed_real_can_data, epochs=1000, batch_size=64, results_dir='results/gan')

@@ -32,8 +32,8 @@ def validate(real_data_file, synthetic_data_file, method):
     plot_distribution(real_data.flatten(), synthetic_data.flatten(), method)
 
 if __name__ == "__main__":
-    real_data_file = '../data/preprocessed_can_data.csv'
-    results_dir = '../results'
+    real_data_file = 'data/preprocessed_can_data.csv'
+    results_dir = 'results/'
 
     scenarios = ['gan', 'vae', 'gan_vae']
 
