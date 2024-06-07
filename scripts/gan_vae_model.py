@@ -1,7 +1,7 @@
 import numpy as np
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Input, Dense, Lambda, Flatten, Reshape
-from tensorflow.keras.layers import BatchNormalization, LeakyReLU
+from tensorflow.keras.layers import BatchNormalization, LeakyReLU, Layer
 from tensorflow.keras.losses import mse
 import tensorflow.keras.backend as K
 import tensorflow as tf
@@ -12,6 +12,22 @@ def sampling(args):
     dim = K.int_shape(z_mean)[1]
     epsilon = K.random_normal(shape=(batch, dim))
     return z_mean + K.exp(0.5 * z_log_var) * epsilon
+
+class VAELossLayer(Layer):
+    def __init__(self, input_dim, **kwargs):
+        self.input_dim = input_dim
+        super(VAELossLayer, self).__init__(**kwargs)
+
+    def call(self, inputs):
+        x, x_decoded_mean, z_mean, z_log_var = inputs
+        reconstruction_loss = mse(x, x_decoded_mean)
+        reconstruction_loss *= self.input_dim
+        kl_loss = 1 + z_log_var - K.square(z_mean) - K.exp(z_log_var)
+        kl_loss = K.sum(kl_loss, axis=-1)
+        kl_loss *= -0.5
+        vae_loss = K.mean(reconstruction_loss + kl_loss)
+        self.add_loss(vae_loss)
+        return x_decoded_mean
 
 def build_vae(input_dim, latent_dim):
     inputs = Input(shape=(input_dim,))
@@ -28,15 +44,8 @@ def build_vae(input_dim, latent_dim):
     decoder = Model(latent_inputs, outputs, name='decoder')
     outputs = decoder(encoder(inputs)[2])
 
-    vae = Model(inputs, outputs, name='vae_mlp')
-
-    reconstruction_loss = mse(inputs, outputs)
-    reconstruction_loss *= input_dim
-    kl_loss = 1 + z_log_var - K.square(z_mean) - K.exp(z_log_var)
-    kl_loss = K.sum(kl_loss, axis=-1)
-    kl_loss *= -0.5
-    vae_loss = K.mean(reconstruction_loss + kl_loss)
-    vae.add_loss(vae_loss)
+    vae_loss_layer = VAELossLayer(input_dim)([inputs, outputs, z_mean, z_log_var])
+    vae = Model(inputs, vae_loss_layer, name='vae_mlp')
 
     return vae, encoder, decoder
 
