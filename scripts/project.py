@@ -1,16 +1,13 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import matplotlib.pyplot as plt
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Input, Dense, Lambda, LeakyReLU, BatchNormalization
 from tensorflow.keras.losses import mse
 import tensorflow.keras.backend as K
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
+import time
 
-# Sampling function for VAE
 def sampling(args):
     z_mean, z_log_var = args
     batch = K.shape(z_mean)[0]
@@ -18,7 +15,6 @@ def sampling(args):
     epsilon = K.random_normal(shape=(batch, dim))
     return z_mean + K.exp(0.5 * z_log_var) * epsilon
 
-# Custom loss layer for VAE
 class VAELossLayer(tf.keras.layers.Layer):
     def __init__(self, input_dim, **kwargs):
         self.input_dim = input_dim
@@ -35,7 +31,6 @@ class VAELossLayer(tf.keras.layers.Layer):
         self.add_loss(vae_loss)
         return x_decoded_mean
 
-# VAE model
 def build_vae(input_dim, latent_dim):
     inputs = Input(shape=(input_dim,))
     h = Dense(256, activation='relu')(inputs)
@@ -56,9 +51,8 @@ def build_vae(input_dim, latent_dim):
 
     return vae, encoder, decoder
 
-# GAN generator model
 def build_generator(latent_dim, output_dim):
-    model = tf.keras.Sequential()
+    model = Sequential()
     model.add(Dense(256, input_dim=latent_dim))
     model.add(LeakyReLU(alpha=0.2))
     model.add(BatchNormalization(momentum=0.8))
@@ -71,37 +65,32 @@ def build_generator(latent_dim, output_dim):
     model.add(Dense(output_dim, activation='tanh'))
     return model
 
-# GAN discriminator model
-def build_discriminator(input_dim):
-    model = Sequential([
+def train_vae(data, latent_dim=2, epochs=50, batch_size=32):
+    input_dim = data.shape[1]
+    vae, encoder, decoder = build_vae(input_dim, latent_dim)
+    vae.compile(optimizer='adam')
+    vae.fit(data, epochs=epochs, batch_size=batch_size, verbose=1)
+    return vae, encoder, decoder
+
+def train_gan(data, gan_latent_dim=100, epochs=10000, batch_size=64):
+    input_dim = data.shape[1]
+    data = (data - 0.5) * 2.0  # Normalize to [-1, 1]
+
+    generator = build_generator(gan_latent_dim, input_dim)
+    discriminator = Sequential([
         Dense(512, input_dim=input_dim),
         LeakyReLU(alpha=0.2),
         Dense(256),
         LeakyReLU(alpha=0.2),
         Dense(1, activation='sigmoid')
     ])
-    return model
-
-# Training function for VAE and GAN
-def train_gan_vae(data, latent_dim=2, epochs=10000, batch_size=64, gan_latent_dim=100):
-    data = (data - 0.5) * 2.0  # Normalize to [-1, 1]
-    input_dim = data.shape[1]
-
-    # VAE
-    vae, encoder, decoder = build_vae(input_dim, latent_dim)
-    vae.compile(optimizer='adam')
-    vae.fit(data, epochs=50, batch_size=batch_size)
-
-    # GAN
-    generator = build_generator(gan_latent_dim, input_dim)
-    discriminator = build_discriminator(input_dim)
     discriminator.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-    
-    z = tf.keras.Input(shape=(gan_latent_dim,))
+
+    z = Input(shape=(gan_latent_dim,))
     generated_data = generator(z)
     discriminator.trainable = False
     validity = discriminator(generated_data)
-    combined = tf.keras.Model(z, validity)
+    combined = Model(z, validity)
     combined.compile(loss='binary_crossentropy', optimizer='adam')
 
     real = np.ones((batch_size, 1))
@@ -124,55 +113,44 @@ def train_gan_vae(data, latent_dim=2, epochs=10000, batch_size=64, gan_latent_di
         if epoch % 1000 == 0:
             print(f"{epoch} [D loss: {d_loss[0]} | D acc.: {100*d_loss[1]}] [G loss: {g_loss}]")
 
-    return vae, encoder, decoder, generator
+    return generator
 
-# Function to generate data and save plots
-def generate_and_save_plots(data, vae, decoder, generator):
-    # Generate using VAE
-    z_sample_vae = np.random.normal(size=(1000, 2))
-    vae_generated_data = decoder.predict(z_sample_vae)
+def compare_generated_data(real_data, vae_data, gan_data, combined_data, output_dir):
+    fig, axs = plt.subplots(2, 2, figsize=(12, 12))
+
+    for i, (title, data) in enumerate(zip(
+            ["Real Data", "VAE Generated Data", "GAN Generated Data", "Combined Generated Data"],
+            [real_data, vae_data, gan_data, combined_data])):
+        ax = axs[i//2, i%2]
+        ax.hist(data.flatten(), bins=50, alpha=0.7)
+        ax.set_title(title)
+
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/comparison.png')
+    plt.show()
+
+if __name__ == "__main__":
+    start_time = time.time()
+    data = pd.read_csv('data/preprocessed_can_data.csv').values
+
+    # VAE Training and Generation
+    vae, encoder, decoder = train_vae(data)
+    z_sample = np.random.normal(size=(1000, 2))
+    vae_generated_data = decoder.predict(z_sample)
     pd.DataFrame(vae_generated_data).to_csv('results/vae/generated_data.csv', index=False)
-    
-    # Generate using GAN
-    noise_gan = np.random.normal(0, 1, (1000, 100))
-    gan_generated_data = generator.predict(noise_gan)
+
+    # GAN Training and Generation
+    gan_latent_dim = 100
+    gan_generator = train_gan(data, gan_latent_dim=gan_latent_dim)
+    noise = np.random.normal(0, 1, (1000, gan_latent_dim))
+    gan_generated_data = gan_generator.predict(noise)
     gan_generated_data = (gan_generated_data + 1) / 2.0  # Denormalize to [0, 1]
     pd.DataFrame(gan_generated_data).to_csv('results/gan/generated_data.csv', index=False)
 
-    # Generate using both VAE and GAN
-    z_sample_combined = np.random.normal(size=(1000, 2))
-    combined_generated_data_latent = decoder.predict(z_sample_combined)
-    combined_generated_data = generator.predict(combined_generated_data_latent)
-    combined_generated_data = (combined_generated_data + 1) / 2.0  # Denormalize to [0, 1]
-    pd.DataFrame(combined_generated_data).to_csv('results/gan_vae/generated_data.csv', index=False)
+    # Combined VAE-GAN Training and Generation
+    combined_data = (vae_generated_data + gan_generated_data) / 2.0
+    pd.DataFrame(combined_data).to_csv('results/gan_vae/generated_combined_data.csv', index=False)
 
-    # Print statistics
-    print_statistics(data, vae_generated_data, gan_generated_data)
-    
-    # Plot histograms
-    for i in range(data.shape[1]):
-        plot_histograms(data, vae_generated_data, gan_generated_data, i)
-    
-    # Plot pairplots
-    plot_pairplot(data, title='Original Data Pairplot')
-    plot_pairplot(vae_generated_data, title='VAE Generated Data Pairplot')
-    plot_pairplot(gan_generated_data, title='GAN Generated Data Pairplot')
-    plot_pairplot(combined_generated_data, title='Combined VAE-GAN Generated Data Pairplot')
-    
-    # Plot dimensionality reduction
-    plot_dimensionality_reduction(data, vae_generated_data, gan_generated_data, method='tsne')
-    plot_dimensionality_reduction(data, vae_generated_data, gan_generated_data, method='pca')
-    plot_dimensionality_reduction(data, combined_generated_data, method='tsne', title='Combined VAE-GAN Generated Data t-SNE')
-    plot_dimensionality_reduction(data, combined_generated_data, method='pca', title='Combined VAE-GAN Generated Data PCA')
+    compare_generated_data(data, vae_generated_data, gan_generated_data, combined_data, 'results/comparison')
 
-    # Save plots
-    plt.savefig('results/plots/comparison_plot.png')
-
-if __name__ == "__main__":
-    data = pd.read_csv('data/preprocessed_can_data.csv').values
-    
-    # Train VAE, GAN, and combined VAE-GAN
-    vae, encoder, decoder, generator = train_gan_vae(data)
-    
-    # Generate data and save plots
-    generate_and_save_plots(data, vae, decoder, generator)
+    print("Training and generation completed in {:.2f} minutes.".format((time.time() - start_time) / 60))
