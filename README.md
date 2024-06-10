@@ -11,29 +11,25 @@ python3 -m pip install numpy pandas matplotlib scikit-learn tensorflow
 ### 1: Run the preprocessing script
 
 ```
-python3 scripts/load_preprocess_data.py
+python3 scripts/preprocess.py
 ```
 
-### 2: Train the GAN model
+### 2: Train and generate using the GAN model
 
 ```
-python3 scripts/train_gan.py
+python3 scripts/generator_gan.py
 ```
 
-### 3: Train the VAE model
+### 3: Train and generate using the VAE model
 
 ```
-python3 scripts/train_vae.py
+python3 scripts/generator_vae.py
 ```
 
-### 4: Train the GAN-VAE model
+### 4: Train and generate using the GAN-VAE model
 
 ```
-python3 scripts/train_gan_vae.py
+python3 scripts/generator_gan_vae.py
 ```
 
-### 5: Validate and compare the synthetic data:
-
-```
-python3 scripts/validate.py
-```
+### 5: Validate and compare the synthetic data
