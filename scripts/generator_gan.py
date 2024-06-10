@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 # Load and preprocess the dataset
-data = pd.read_csv('source_dataset.csv')
+data = pd.read_csv('data/source_dataset.csv')
 data = data.fillna(0)  # Fill NaN values with 0
 data_values = data[['Timestamp', 'CAN ID', 'DLC'] + [f'DATA[{i}]' for i in range(8)]].values
 

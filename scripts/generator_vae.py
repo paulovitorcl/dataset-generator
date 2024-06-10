@@ -1,15 +1,30 @@
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow.keras import layers
 import tensorflow.keras.backend as K
 
+# Load and preprocess the dataset
+data = pd.read_csv('data/source_dataset.csv')
+data = data.fillna(0)  # Fill NaN values with 0
+data_values = data[['Timestamp', 'CAN ID', 'DLC'] + [f'DATA[{i}]' for i in range(8)]].values
+
+# Normalize the data
+data_min = data_values.min(axis=0)
+data_max = data_values.max(axis=0)
+data_values = (data_values - data_min) / (data_max - data_min)
+
 # Define the VAE components
+latent_dim = 2
+input_shape = data_values.shape[1]
+
+# Sampling function for VAE
 def sampling(args):
     z_mean, z_log_var = args
     batch = K.shape(z_mean)[0]
     dim = K.int_shape(z_mean)[1]
     epsilon = K.random_normal(shape=(batch, dim))
     return z_mean + K.exp(0.5 * z_log_var) * epsilon
-
-input_shape = data_values.shape[1]
-latent_dim = 2
 
 # Encoder
 inputs = tf.keras.Input(shape=(input_shape,))
@@ -53,4 +68,4 @@ synthetic_data_vae = generate_synthetic_data_vae(decoder, 1000)
 
 # Convert to DataFrame and save to CSV
 synthetic_data_vae_df = pd.DataFrame(synthetic_data_vae, columns=['Timestamp', 'CAN ID', 'DLC'] + [f'DATA[{i}]' for i in range(8)])
-synthetic_data_vae_df.to_csv('data/synthetic_data_vae.csv', index=False)
+synthetic_data_vae_df.to_csv('synthetic_data_vae.csv', index=False)
