@@ -1,3 +1,6 @@
-/data/can_data.txt
-/data/preprocessed_can_data.csv
-/scripts/__pycache__/*
+old_data/*
+weights/*
+*/*__pycache__/*
+*.txt
+*.csv
+*.log
